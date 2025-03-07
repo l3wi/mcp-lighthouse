@@ -1,6 +1,6 @@
 {
   "name": "mcp-lighthouse",
-  "version": "0.0.2",
+  "version": "0.0.3",
   "description": "An MCP server for Lighthouse.one portfolio tracker.",
   "keywords": [
     "mcp",
@@ -28,9 +28,9 @@
     "dist"
   ],
   "scripts": {
-    "build": "tsc && shx chmod +x dist/*.js",
+    "build": "npx tsc && npx shx chmod +x dist/*.js",
     "prepare": "npm run build",
-    "watch": "tsc --watch"
+    "watch": "npx tsc --watch"
   },
   "dependencies": {
     "fastmcp": "^1.20.2",

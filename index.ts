@@ -1,3 +1,5 @@
+#!/usr/bin/env node
+
 import { FastMCP } from "fastmcp";
 import { z } from "zod";
 import * as fs from "fs/promises";
@@ -10,7 +12,7 @@ const __dirname = path.dirname(__filename);
 
 const server = new FastMCP({
   name: "Lighthouse MCP",
-  version: "0.0.1",
+  version: "0.0.3",
 });
 
 const SESSION_FILE = path.join(__dirname, ".lighthouse_session");
