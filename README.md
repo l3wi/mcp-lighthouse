@@ -11,26 +11,6 @@ A Model Context Protocol (MCP) server that enables Claude to interact with your 
   - Major holdings (≥ $1,000)
   - List of connected wallets/accounts
 
-## Installation
-
-```bash
-npm install
-```
-
-## Running Locally
-
-1. Build the project:
-
-```bash
-npm run build
-```
-
-2. Start the MCP server:
-
-```bash
-npm start
-```
-
 ## Usage with Claude Desktop
 
 Add this to your `claude_desktop_config.json`:
@@ -86,6 +66,26 @@ NOTE: You can always revoke the session key from the Lighthouse dashboard.
 ## Security Note
 
 This MCP server runs locally on your machine and communicates directly with Lighthouse's API. Your authentication credentials are never shared with Claude or any third-party services.
+
+## Installation
+
+```bash
+npm install
+```
+
+## Running Locally
+
+1. Build the project:
+
+```bash
+npm run build
+```
+
+2. Start the MCP server:
+
+```bash
+npm start
+```
 
 ## Development
 
