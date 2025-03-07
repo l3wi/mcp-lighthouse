@@ -46,6 +46,20 @@ Add this to your `claude_desktop_config.json`:
 }
 ```
 
+Then restart the CLaude app. If you don't get any errors on startup, then the MCP server is working.
+
+## Authentication Walkthrough
+
+To authenticate with Lighthouse, follow these steps:
+
+1. Go to the Settings page on Lighthouse.one
+2. Click on "Link Mobile Device" option
+3. Take a screenshot of the displayed QR code
+4. Visit a QR code decoder (e.g., [ZXing Decoder](https://zxing.org/w/decode.jspx)) and upload your screenshot
+5. Copy the decoded URL and ask Claude to authenticate with Lighthouse by pasting the URL into the chat
+
+Note: The URL will be in the format of a Lighthouse transfer token URL which Claude can use to authenticate your session.
+
 ## Available Commands
 
 Once connected, you can use the following commands with Claude:
@@ -66,6 +80,8 @@ Once connected, you can use the following commands with Claude:
 - The server maintains a session file (`.lighthouse_session`) to persist your authentication
 - You only need to authenticate once unless you explicitly log out or the session expires
 - Session data is stored securely on your local machine
+
+NOTE: You can always revoke the session key from the Lighthouse dashboard.
 
 ## Security Note
 
