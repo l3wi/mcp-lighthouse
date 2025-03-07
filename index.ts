@@ -10,7 +10,6 @@ const __dirname = path.dirname(__filename);
 
 const server = new FastMCP({
   name: "Lighthouse MCP",
-  description: "An MCP server for Lighthouse.one portfolio tracker.",
   version: "0.0.1",
 });
 

@@ -1,9 +1,12 @@
+dist/.lighthouse_session
 .lighthouse_session
 
 # Dependency directories
 node_modules/
 jspm_packages/
 .cursor/
+
+
 
 # Logs
 logs

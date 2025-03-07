@@ -1,8 +1,26 @@
 {
   "name": "mcp-lighthouse",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "description": "An MCP server for Lighthouse.one portfolio tracker.",
+  "keywords": [
+    "mcp",
+    "claude",
+    "lighthouse",
+    "crypto",
+    "portfolio"
+  ],
+  "homepage": "https://github.com/l3wi/mcp-lighthouse#readme",
+  "bugs": {
+    "url": "https://github.com/l3wi/mcp-lighthouse/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/l3wi/mcp-lighthouse.git"
+  },
+  "license": "MIT",
+  "author": "l3wi",
   "type": "module",
+  "main": "index.js",
   "bin": {
     "mcp-lighthouse": "dist/index.js"
   },
