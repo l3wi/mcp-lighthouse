@@ -2,48 +2,20 @@
 
 import { FastMCP } from "fastmcp";
 import { z } from "zod";
-import * as fs from "fs/promises";
-import * as path from "path";
-import { fileURLToPath } from "url";
-import { ApiResponse, Account, Position, Asset, UserResponse } from "./lighthouse.js";
+import {
+  Account,
+  Lighthouse,
+  Position,
+  LighthouseAsset,
+} from "./lighthouse.js";
+import { formatNumber, formatPercentage } from "./utils.js";
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+export const version = "0.0.5";
+export const scriptName = "Lighthouse MCP";
 
 const server = new FastMCP({
-  name: "Lighthouse MCP",
-  version: "0.0.3",
-});
-
-const SESSION_FILE = path.join(__dirname, ".lighthouse_session");
-let sessionCookie: string | null = null;
-
-// Function to load session from file
-async function loadSession(): Promise<string | null> {
-  try {
-    const data = await fs.readFile(SESSION_FILE, "utf-8");
-    return data.trim() || null;
-  } catch (error) {
-    return null;
-  }
-}
-
-// Function to save session to file
-async function saveSession(cookie: string | null): Promise<void> {
-  if (cookie) {
-    await fs.writeFile(SESSION_FILE, cookie, "utf-8");
-  } else {
-    try {
-      await fs.unlink(SESSION_FILE);
-    } catch (error) {
-      // Ignore error if file doesn't exist
-    }
-  }
-}
-
-// Initialize session from file
-loadSession().then((cookie) => {
-  sessionCookie = cookie;
+  name: scriptName,
+  version: version,
 });
 
 server.addTool({
@@ -54,55 +26,23 @@ server.addTool({
   }),
   execute: async (args) => {
     try {
-      // Extract token from URL
-      const url = new URL(args.url);
-      const token = url.searchParams.get("token");
+      const result = await lighthouse.authenticate(args.url);
 
-      if (!token) {
-        throw new Error("No token found in URL");
+      if (result.success) {
+        return {
+          content: [
+            {
+              type: "text",
+              text: result.message,
+            },
+          ],
+        };
+      } else {
+        return {
+          content: [{ type: "text", text: result.message }],
+        };
       }
-
-      // Make the login request
-      const response = await fetch("https://lighthouse.one/v1/login", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Accept: "application/vnd.api+json",
-        },
-        body: JSON.stringify({
-          type: "TRANSFER_TOKEN",
-          token: token,
-        }),
-      });
-
-      if (!response.ok) {
-        throw new Error(`Login failed with status ${response.status}`);
-      }
-
-      // Extract and store the session cookie
-      const cookies = response.headers.get("set-cookie");
-      if (cookies) {
-        const sessionCookieMatch = cookies.match(/lh_session=([^;]+)/);
-        if (sessionCookieMatch) {
-          sessionCookie = sessionCookieMatch[1];
-          // Save the session cookie to file
-          await saveSession(sessionCookie);
-          return {
-            content: [
-              {
-                type: "text",
-                text: "Successfully authenticated with Lighthouse",
-              },
-            ],
-          };
-        }
-      }
-
-      throw new Error("No session cookie found in response");
     } catch (error: any) {
-      // Clear session cookie on error
-      sessionCookie = null;
-      await saveSession(null);
       return {
         content: [
           { type: "text", text: `Authentication failed: ${error.message}` },
@@ -112,15 +52,65 @@ server.addTool({
   },
 });
 
+server.addTool({
+  name: "listLighthousePortfolios",
+  description:
+    "List all Lighthouse portfolios, their total portfolio value, the wallets within each portfolio and their total value",
+  parameters: z.object({}),
+  execute: async () => {
+    const portfolios = await lighthouse.getUserData();
+    const porfolioData = await Promise.all(
+      portfolios.user.portfolios.map(async (portfolio) => {
+        return await lighthouse.getPortfolioData(portfolio.slug);
+      })
+    );
+
+    //Sum the portfolios
+    const totalPortfolioValue = porfolioData.reduce(
+      (acc, data) => acc + data.usdValue,
+      0
+    );
+
+    /// Format the porfolio data
+    const formattedPorfolioData = porfolioData.map((data, i) => {
+      return `# ${i + 1}. ${
+        portfolios.user.portfolios[i].name
+      }\n\n## Total Portfolio Value: $${data.usdValue.toLocaleString()}\n\n## Wallets (${
+        Object.keys(data.accounts).length
+      }):\n${Object.entries(data.accounts)
+        .map(([accountId, account]) => `- ${account.name} (${account.type})`)
+        .join("\n")}`;
+    });
+
+    return {
+      content: [
+        {
+          type: "text",
+          text: `# Lighthouse Portfolios\n\n${formattedPorfolioData.join(
+            "\n"
+          )}\n\n## Total Portfolio Value: $${totalPortfolioValue.toLocaleString()}`,
+        },
+      ],
+    };
+  },
+});
+
 // Tool to fetch and format Lighthouse portfolio data
 server.addTool({
   name: "getLighthousePortfolio",
   description:
-    "Fetch and display your Lighthouse portfolio with breakdown by asset types and major holdings",
-  parameters: z.object({}),
-  execute: async () => {
+    "Fetch and display a detailed summary of a Lighthouse portfolio with breakdown by asset types and major holdings.",
+  parameters: z.object({
+    portfolio: z
+      .string()
+      .optional()
+      .describe(
+        "Optional portfolio name to select a specific portfolio to display a summary for"
+      ),
+  }),
+  execute: async (args) => {
     try {
-      if (!sessionCookie) {
+      if (!lighthouse.isAuthenticated()) {
         return {
           content: [
             {
@@ -131,44 +121,11 @@ server.addTool({
         };
       }
 
-      // Most Lighthouse users can have only one portfolio so load the users data
-      // and grab the first portfolio available. This MCP server does not support
-      // users with multiple portfolios.
-      const userResponse = await fetch(
-        "https://lighthouse.one/v1/user",
-        {
-          headers: {
-            Cookie: `lh_session=${sessionCookie}`,
-          },
-        }
-      );
-      if (!userResponse.ok) {
-        throw new Error(`API request failed with status ${userResponse.status}`);
-      }
+      // Find the portfolio
+      const portfolio = await lighthouse.findPortfolio(args.portfolio);
 
-      const user: UserResponse = await userResponse.json();
-      if (user.user.portfolios.length <= 0) {
-        throw new Error(`The user has no portfolios. Please create one.`);
-      }
-
-      const { slug } = user.user.portfolios[0];
-
-      // Fetch the latest snapshot from Lighthouse API
-      // Using the URL from the comment in lighthouse.d.ts
-      const response = await fetch(
-        `https://lighthouse.one/v1/workspaces/${slug}/snapshots/latest`,
-        {
-          headers: {
-            Cookie: `lh_session=${sessionCookie}`,
-          },
-        }
-      );
-
-      if (!response.ok) {
-        throw new Error(`API request failed with status ${response.status}`);
-      }
-
-      const data: ApiResponse = await response.json();
+      // Get the portfolio data
+      const data = await lighthouse.getPortfolioData(portfolio.slug);
 
       // Calculate total USD value
       const totalUsdValue = data.usdValue;
@@ -184,7 +141,7 @@ server.addTool({
       const assetTypeMap = new Map<string, number>();
 
       data.positions.forEach((position: Position) => {
-        position.assets.forEach((asset: Asset) => {
+        position.assets.forEach((asset: LighthouseAsset) => {
           const currentValue = assetTypeMap.get(asset.type) || 0;
           assetTypeMap.set(asset.type, currentValue + asset.usdValue);
         });
@@ -220,9 +177,9 @@ server.addTool({
 ${assetTypeBreakdown
   .map(
     (item) =>
-      `| ${item.type} | $${item.value.toLocaleString(undefined, {
-        maximumFractionDigits: 2,
-      })} | ${item.percentage.toFixed(2)}% |`
+      `| ${item.type} | $${formatNumber(item.value)} | ${formatPercentage(
+        item.percentage
+      )}% |`
   )
   .join("\n")}
 `;
@@ -233,12 +190,9 @@ ${assetTypeBreakdown
 ${majorAssets
   .map(
     (asset) =>
-      `| ${asset.name} (${asset.symbol}) | $${asset.value.toLocaleString(
-        undefined,
-        { maximumFractionDigits: 2 }
-      )} | ${asset.amount.toLocaleString(undefined, {
-        maximumFractionDigits: 6,
-      })} |`
+      `| ${asset.name} (${asset.symbol}) | $${formatNumber(
+        asset.value
+      )} | ${formatNumber(asset.amount)} |`
   )
   .join("\n")}
 `;
@@ -247,9 +201,11 @@ ${majorAssets
         content: [
           {
             type: "text",
-            text: `# Lighthouse Portfolio Summary\n\n## Total Portfolio Value: $${totalUsdValue.toLocaleString()}\n\n## Wallets (${
-              wallets.length
-            }):\n${wallets
+            text: `# Lighthouse Portfolio Summary: ${
+              portfolio.name
+            }\n\n## Total Portfolio Value: $${formatNumber(
+              totalUsdValue
+            )}\n\n## Wallets (${wallets.length}):\n${wallets
               .map((w) => `- ${w.name} (${w.type})`)
               .join(
                 "\n"
@@ -270,6 +226,242 @@ ${majorAssets
   },
 });
 
-server.start({
-  transportType: "stdio",
+server.addTool({
+  name: "getLighthouseYieldData",
+  description: "Get yield data for a Lighthouse portfolio",
+  parameters: z.object({
+    portfolio: z
+      .string()
+      .optional()
+      .describe(
+        "Optional portfolio name to select a specific portfolio to display a summary for"
+      ),
+  }),
+  execute: async (args) => {
+    if (!lighthouse.isAuthenticated()) {
+      return {
+        content: [
+          {
+            type: "text",
+            text: "Not authenticated. Please authenticate first.",
+          },
+        ],
+      };
+    }
+
+    const portfolio = args.portfolio
+      ? await lighthouse.findPortfolio(args.portfolio)
+      : await lighthouse.findPortfolio();
+
+    const yieldData = await lighthouse.getYieldData(portfolio.slug);
+
+    // Calulate USD values
+    // Iterate through each pool
+    // Iterate through each supply, receive, borrow, pay
+    // Calculate the USD value of each receive & pay
+    // Sum the USD values of each receive & pay
+    // Return an array of pools with the USD values
+    const formattedYieldData = yieldData.pools.map((pool) => {
+      return {
+        ...pool,
+        receiveUSD: pool.supply.map((supply, index) => {
+          return {
+            asset: supply.asset.symbol,
+            assetUSD: supply.amount * supply.asset.price,
+            apy: pool.receive[index].apy,
+            receiveUSD:
+              (pool.receive[index].apy / 100) *
+              supply.amount *
+              supply.asset.price,
+          };
+        }),
+        payUSD: pool.borrow.map((borrow, index) => {
+          return {
+            asset: borrow.asset.symbol,
+            assetUSD: borrow.amount * borrow.asset.price,
+            apy: pool.pay[index].apy,
+            payUSD:
+              (pool.pay[index].apy / 100) * borrow.amount * borrow.asset.price,
+          };
+        }),
+      };
+    });
+
+    const formattedYieldDataWithUsdValues = formattedYieldData.map((pool) => {
+      return {
+        ...pool,
+        netYieldUSD:
+          pool.receiveUSD.reduce(
+            (acc, receive) => acc + receive.receiveUSD,
+            0
+          ) - pool.payUSD.reduce((acc, pay) => acc + pay.payUSD, 0),
+      };
+    });
+
+    // Format the yield data
+    const responseFormattedYieldData = formattedYieldDataWithUsdValues
+      .map((pool) => {
+        return `# ${pool.platform.name} (${
+          pool.network.name
+        }) - Annual Yield: $${formatNumber(pool.netYieldUSD)} \n${
+          pool.receiveUSD.length > 0
+            ? `## Receive: \n${pool.receiveUSD
+                .map(
+                  (supply) =>
+                    `${supply.asset} - $${formatNumber(
+                      supply.receiveUSD
+                    )} per year`
+                )
+                .join("\n")}`
+            : ""
+        }${
+          pool.payUSD.length > 0
+            ? `## Pay: \n${pool.payUSD
+                .map(
+                  (pay) =>
+                    `${pay.asset} - $${formatNumber(pay.payUSD)} per year`
+                )
+                .join("\n")}`
+            : ""
+        }`;
+      })
+      .join("\n\n");
+
+    const totalSupplyUSD = formattedYieldDataWithUsdValues.reduce(
+      (acc, pool) => {
+        return (
+          acc +
+          pool.receiveUSD.reduce((acc, receive) => {
+            return acc + receive.assetUSD;
+          }, 0)
+        );
+      },
+      0
+    );
+
+    const totalBorrowUSD = formattedYieldDataWithUsdValues.reduce(
+      (acc, pool) => {
+        return acc + pool.payUSD.reduce((acc, pay) => acc + pay.assetUSD, 0);
+      },
+      0
+    );
+
+    const totalYieldUSD = formattedYieldDataWithUsdValues.reduce(
+      (acc, pool) => {
+        return acc + pool.netYieldUSD;
+      },
+      0
+    );
+
+    return {
+      content: [
+        {
+          type: "text",
+          text:
+            `${portfolio.name} \n Total Yield: $${formatNumber(totalYieldUSD)}
+            ## Total Supplied: $${formatNumber(totalSupplyUSD)}
+            ## Total Borrowed: $${formatNumber(totalBorrowUSD)}
+            ## Avg APY: ${formatPercentage(
+              totalYieldUSD / totalSupplyUSD
+            )}% \n\n
+            ` + responseFormattedYieldData,
+        },
+      ],
+    };
+  },
 });
+
+server.addTool({
+  name: "getLighthousePerformanceData",
+  description: "Get performance data for a Lighthouse portfolio",
+  parameters: z.object({
+    portfolio: z.string().optional().describe("Optional portfolio name"),
+    startDate: z
+      .string()
+      .optional()
+      .describe("Optional start date. Formatted as YYYY-MM-DD"),
+  }),
+  execute: async (args) => {
+    const portfolio = args.portfolio
+      ? await lighthouse.findPortfolio(args.portfolio)
+      : await lighthouse.findPortfolio();
+
+    const startDate = args.startDate
+      ? new Date(args.startDate)
+      : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+
+    const performanceData = await lighthouse.getPerformanceData(
+      portfolio.slug,
+      startDate.toISOString().split("T")[0]
+    );
+
+    return {
+      content: [
+        {
+          type: "text",
+          text: `# ${portfolio.name} Performance Data
+          Timeframe: ${performanceData.startsAt} - ${performanceData.endsAt}
+          Period Return: ${formatNumber(
+            performanceData.usdValueChange
+          )} (${formatPercentage(
+            (performanceData.usdValueChange /
+              performanceData.lastSnapshotUsdValue) *
+              100
+          )})
+          ----
+          Performance by asset type:
+          ${performanceData.changeByType
+            .sort((a, b) => b.diffUsdValue - a.diffUsdValue)
+            .map((asset) => {
+              return `- ${asset.type}: ${formatNumber(
+                asset.diffUsdValue
+              )} (${formatPercentage(
+                asset.prevUsdValue / asset.currUsdValue
+              )}%)`;
+            })
+            .join("\n")}
+          ----
+          Top 5 Gainers:
+          ${performanceData.gainers
+            .sort((a, b) => b.diffUsdValue - a.diffUsdValue)
+            .slice(0, 5)
+            .map((gainer) => {
+              return `- ${gainer.symbol}: ${formatNumber(
+                gainer.diffUsdValue
+              )} (${formatPercentage(
+                gainer.diffUsdValue / gainer.prevUsdValue
+              )}%)`;
+            })
+            .join("\n")}
+          ----
+          Top 5 Losers:
+          ${performanceData.losers
+            .sort((a, b) => a.diffUsdValue - b.diffUsdValue)
+            .slice(0, 5)
+            .map((loser) => {
+              return `- ${loser.symbol}: ${formatNumber(
+                loser.diffUsdValue
+              )} (${formatPercentage(
+                loser.diffUsdValue / loser.prevUsdValue
+              )}%)`;
+            })
+            .join("\n")}
+          `,
+        },
+      ],
+    };
+  },
+});
+
+// Create and initialize the Lighthouse client
+const lighthouse = new Lighthouse();
+
+// Initialize the Lighthouse client before starting the server
+(async () => {
+  await lighthouse.initialize();
+  console.log("Lighthouse initialized");
+
+  server.start({
+    transportType: "stdio",
+  });
+})();
