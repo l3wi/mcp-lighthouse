@@ -83,3 +83,13 @@ export interface NftCollection {
     [idName: string]: string;
   };
 }
+
+export interface UserResponse {
+  user: {
+    id: string
+    portfolios: {
+      id:string;
+      slug: string;
+    }[]
+  }
+}

@@ -26,6 +26,19 @@ Add this to your `claude_desktop_config.json`:
 }
 ```
 
+When running this `mcp-lighthouse` server locally make sure to point to the correct build output.
+
+```json
+{
+  "mcpServers": {
+    "lighthouse": {
+      "command": "path/to/node/installation",
+      "args": ["path/to/this/folder/mcp-lighthouse/dist/index.js"]
+    }
+  }
+}
+```
+
 Then restart the CLaude app. If you don't get any errors on startup, then the MCP server is working.
 
 ## Authentication Walkthrough
@@ -34,9 +47,7 @@ To authenticate with Lighthouse, follow these steps:
 
 1. Go to the Settings page on Lighthouse.one
 2. Click on "Link Mobile Device" option
-3. Take a screenshot of the displayed QR code
-4. Visit a QR code decoder (e.g., [ZXing Decoder](https://zxing.org/w/decode.jspx)) and upload your screenshot
-5. Copy the decoded URL and ask Claude to authenticate with Lighthouse by pasting the URL into the chat
+3. Click on "Copy transfer link"
 
 Note: The URL will be in the format of a Lighthouse transfer token URL which Claude can use to authenticate your session.
 
@@ -84,7 +95,7 @@ npm run build
 2. Start the MCP server:
 
 ```bash
-npm start
+npm run watch
 ```
 
 ## Development
