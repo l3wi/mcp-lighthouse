@@ -5,7 +5,7 @@ import { z } from "zod";
 import * as fs from "fs/promises";
 import * as path from "path";
 import { fileURLToPath } from "url";
-import { ApiResponse, Account, Position, Asset } from "./lighthouse.js";
+import { ApiResponse, Account, Position, Asset, UserResponse } from "./lighthouse.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -131,10 +131,32 @@ server.addTool({
         };
       }
 
+      // Most Lighthouse users can have only one portfolio so load the users data
+      // and grab the first portfolio available. This MCP server does not support
+      // users with multiple portfolios.
+      const userResponse = await fetch(
+        "https://lighthouse.one/v1/user",
+        {
+          headers: {
+            Cookie: `lh_session=${sessionCookie}`,
+          },
+        }
+      );
+      if (!userResponse.ok) {
+        throw new Error(`API request failed with status ${userResponse.status}`);
+      }
+
+      const user: UserResponse = await userResponse.json();
+      if (user.user.portfolios.length <= 0) {
+        throw new Error(`The user has no portfolios. Please create one.`);
+      }
+
+      const { slug } = user.user.portfolios[0];
+
       // Fetch the latest snapshot from Lighthouse API
       // Using the URL from the comment in lighthouse.d.ts
       const response = await fetch(
-        "https://lighthouse.one/v1/workspaces/neckbeard-ido/snapshots/latest",
+        `https://lighthouse.one/v1/workspaces/${slug}/snapshots/latest`,
         {
           headers: {
             Cookie: `lh_session=${sessionCookie}`,
