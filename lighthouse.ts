@@ -1,5 +1,3 @@
-/// Response from the Lighthouse API /latest endpoint
-// https://lighthouse.one/v1/workspaces/neckbeard-ido/snapshots/latest
 import * as fs from "fs/promises";
 import * as path from "path";
 import { fileURLToPath } from "url";
@@ -254,7 +252,7 @@ export class Lighthouse {
       headers: {
         ...options.headers,
         Cookie: `lh_session=${this.sessionCookie}`,
-        "User-Agent": `${scriptName}/${version}`,
+        "User-Agent": `Lighthouse MCP/${version}`,
       },
     });
 
@@ -330,13 +328,12 @@ export class Lighthouse {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Accept: "application/vnd.api+json",
-          "User-Agent": `${scriptName}/${version}`,
-          body: JSON.stringify({
-            type: "TRANSFER_TOKEN",
-            token: token,
-          }),
+          "User-Agent": `Lighthouse MCP/${version}`,
         },
+        body: JSON.stringify({
+          type: "TRANSFER_TOKEN",
+          token: token,
+        }),
       });
 
       if (!response.ok) {

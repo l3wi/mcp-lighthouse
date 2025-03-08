@@ -14,7 +14,7 @@ export const version = "0.0.5";
 export const scriptName = "Lighthouse MCP";
 
 const server = new FastMCP({
-  name: scriptName,
+  name: "Lighthouse MCP",
   version: version,
 });
 
@@ -459,7 +459,6 @@ const lighthouse = new Lighthouse();
 // Initialize the Lighthouse client before starting the server
 (async () => {
   await lighthouse.initialize();
-  console.log("Lighthouse initialized");
 
   server.start({
     transportType: "stdio",
