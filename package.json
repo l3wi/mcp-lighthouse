@@ -1,6 +1,6 @@
 {
   "name": "mcp-lighthouse",
-  "version": "0.0.3",
+  "version": "0.0.4",
   "description": "An MCP server for Lighthouse.one portfolio tracker.",
   "keywords": [
     "mcp",
