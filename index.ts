@@ -10,7 +10,7 @@ import {
 } from "./lighthouse.js";
 import { formatNumber, formatPercentage } from "./utils.js";
 
-export const version = "0.0.5";
+export const version = "0.0.6";
 export const scriptName = "Lighthouse MCP";
 
 const server = new FastMCP({
